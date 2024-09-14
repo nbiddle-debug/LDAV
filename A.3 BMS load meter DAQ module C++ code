@@ -1,0 +1,151 @@
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
+import numpy
+import sys
+import socket
+import time
+import termcolor
+
+ip = "10.9.51.74"
+portudp = 5005
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+td_array = numpy.zeros((901, 1), dtype = numpy.dtype('a32'))
+data = numpy.zeros((53, 17), dtype = object)
+table = numpy.zeros((53, 14), dtype = numpy.dtype('a32'))
+value = numpy.zeros((53, 14), dtype = numpy.dtype('a32'))
+prev = numpy.zeros((53, 14), dtype = numpy.dtype('a32'))
+timestamp = numpy.zeros((53, 14), dtype = numpy.dtype('a32'))
+latency = numpy.zeros((1, 1), dtype = numpy.dtype('a32'))
+
+now = datetime.now()
+
+tablepara = numpy.array(["VOLTAGEA1", "VOLTAGEB1", "VOLTAGEC1", "CURRENTA1", "CURRENTB1", "CURRENTC1", "POWER1111", "APPARENT1", "REACTIVE1", "POWERFACT", "FREQUENCY", "ENERGYNET", "ENERGYIMP", "ENERGYEXP"])
+
+deletetable = "b -'[],"
+deletedata = "VAkWkvarpfHzhb -'[],"
+
+print(termcolor.colored("bms_html.py", 'red'))
+
+
+while 1:       
+        try:
+                start = time.time()
+                t = now.strftime("%H:%M:%S")
+
+                session = requests.Session()
+                # login_response = session.post("http://alchemy.ad.uow.edu.au", auth = ("MeterSummary", "MeterSummary2022"))
+                # r = session.get("http://alchemy.ad.uow.edu.au")
+                login_response = session.post("https://alchemy.ad.uow.edu.au/login", auth = ("MeterSummary", "MeterSummary2022"), verify = False)
+                r = session.get("https://alchemy.ad.uow.edu.au")
+                rs = BeautifulSoup(r.content, 'html.parser')
+                dataTable = rs.find(id="root.GridTable.content.content.data")
+                rows = dataTable.find_all("tr")
+                td_count = 0
+                for tr in rows:
+                        tds = tr.find_all('td')
+                        for td in tds:
+                                td_array[td_count] = td.text
+                                td_count = td_count + 1
+
+
+                for i in range(0, 53, 1):
+                        for j in range(0, 17, 1):
+                                n = j + i*17
+                                data[i, j] = td_array[n]
+
+                d_count = 0
+
+                i = 0
+                for j in range(len(tablepara)):
+
+                        temp = "M11" + tablepara[j]
+                        for x in deletetable:
+                                temp = temp.replace(x, "").replace('"', '')
+                        table[i, j] = temp
+
+                        temp = str(data[i, j + 3])
+                        for x in deletedata:
+                                temp = temp.replace(x, "").replace('"', '')
+                        value[i, j] = temp
+                        if temp != '':
+                                value[i, j] = str(round(float(temp), 3))
+                        else:
+                                value[i, j] = temp                
+
+                        timestamp[i, j] = str(t)
+
+                        if value[i, j] != prev[i, j]:
+                                msg = table[i, j] + timestamp[i, j] + value[i, j]
+                                print(termcolor.colored(d_count, 'green'), msg, termcolor.colored(sys.getsizeof(msg), 'blue'))
+                                sock.sendto(msg, (ip, portudp))
+                                d_count = d_count + 1
+
+                for i in range(19, 34, 1):
+                        for j in range(len(tablepara)):
+
+                                temp = str(data[i, 0])+ tablepara[j]
+                                for x in deletetable:
+                                        temp = temp.replace(x, "").replace('"', '')
+                                table[i, j] = temp
+
+                                temp = str(data[i, j + 3])
+                                if temp == '-':
+                                        temp = temp.replace("-", "")
+                                for x in deletedata:
+                                        temp = temp.replace(x, "").replace('"', '')
+                        
+                                if temp != '':
+                                        value[i, j] = str(round(float(temp), 3))
+                                else:
+                                        value[i, j] = temp
+                        
+
+
+                                timestamp[i, j] = str(t)
+
+                                msg = table[i, j] + timestamp[i, j] + value[i, j]
+                                print(termcolor.colored(d_count, 'green'), msg, termcolor.colored(sys.getsizeof(msg), 'blue'))
+                                sock.sendto(msg, (ip, portudp))
+                                d_count = d_count + 1
+
+                i = 3
+                for j in range(len(tablepara)):
+
+                        temp = "M44" + tablepara[j]
+                        for x in deletetable:
+                                temp = temp.replace(x, "").replace('"', '')
+                        table[i, j] = temp
+
+                        temp = str(data[i, j + 3])
+                        for x in deletedata:
+                                temp = temp.replace(x, "").replace('"', '')
+                        value[i, j] = temp
+                        if temp != '':
+                                value[i, j] = str(round(float(temp), 3))
+                        else:
+                                value[i, j] = temp                
+
+                        timestamp[i, j] = str(t)
+
+                        if value[i, j] != prev[i, j]:
+                                msg = table[i, j] + timestamp[i, j] + value[i, j]
+                                print(termcolor.colored(d_count, 'green'), msg, termcolor.colored(sys.getsizeof(msg), 'blue'))
+                                sock.sendto(msg, (ip, portudp))
+                                d_count = d_count + 1
+
+
+
+                if d_count == 238:
+                        latency[0, 0] = int(time.time() - start)
+                        latency[0, 0] = 'M99LATENCY11' + '00:00:00' + str(latency[0, 0]).replace("b", "").replace("'", "")
+                        msg = latency[0, 0]
+                        print(termcolor.colored("238", 'green'), msg, termcolor.colored(sys.getsizeof(msg), 'blue'))
+                        sock.sendto(msg, (ip, portudp))
+
+        except KeyboardInterrupt:
+                exit()
+        # except:
+        #         print(termcolor.colored("failed to connect to server", 'red'))
+
