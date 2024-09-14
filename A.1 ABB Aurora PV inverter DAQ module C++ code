@@ -1,0 +1,147 @@
+#include "Arduino.h"
+#include <Aurora.h>
+#include <SoftwareSerial.h>
+#include <MemoryFree.h>
+
+int status;
+SoftwareSerial mySerial(10, 11); // RX, TX
+//Aurora inverter = Aurora(2, &Serial1, 5);
+Aurora inv1 = Aurora(12, 10, 11, 5); //Inv1
+Aurora inv2 = Aurora(13, 10, 11, 5); //Inv2
+Aurora inv3 = Aurora(14, 10, 11, 5); //Inv3
+
+void SerialPrintData(byte *data) { // data packet received from inverter
+	for (int j = 0; j < 8; j++) {
+		Serial.print((int)data[j]);
+		Serial.print(F(" "));
+	}
+	Serial.println(F(" "));
+}
+
+void setup() {
+	Serial.begin(19200); // board rate set to communicate with inverters and raspberry pi
+	inv1.begin();
+	inv2.begin();
+	inv3.begin();
+	pinMode(LED_BUILTIN, OUTPUT);
+}
+
+void loop() {
+	if (Serial.available() > 0) { // checks if serial is available to pi
+		if (Serial.read() == 'R') { // only commences when pi sends 'R' character via serial
+			freeMemory();
+			digitalWrite(LED_BUILTIN, HIGH);
+
+			Aurora::DataDSP volt = inv1.readDSP(DSP_VOLTAGE_ALL, 1);
+			Serial.println(volt.value);
+			Aurora::DataDSP gridvolt = inv1.readDSP(DSP_AVERAGE_GRID_VOLTAGE_VGRIDAVG_GT, 1);
+			Serial.println(gridvolt.value);
+			Aurora::DataDSP voltA = inv1.readDSP(DSP_GRID_VOLTAGE_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(voltA.value);
+			Aurora::DataDSP voltB = inv1.readDSP(DSP_GRID_VOLTAGE_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(voltB.value);
+			Aurora::DataDSP voltC = inv1.readDSP(DSP_GRID_VOLTAGE_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(voltC.value);
+			Aurora::DataDSP voltN = inv1.readDSP(DSP_GRID_VOLTAGE_NEUTRAL_PHASE_CENTRAL, 1);
+			Serial.println(voltN.value);
+			Aurora::DataDSP current = inv1.readDSP(DSP_CURRENT_ALL, 1);
+			Serial.println(current.value);
+			Aurora::DataDSP currentA = inv1.readDSP(DSP_GRID_CURRENT_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(currentA.value);
+			Aurora::DataDSP currentB = inv1.readDSP(DSP_GRID_CURRENT_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(currentB.value);
+			Aurora::DataDSP currentC = inv1.readDSP(DSP_GRID_CURRENT_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(currentC.value);
+			Aurora::DataDSP power = inv1.readDSP(DSP_GRID_POWER_ALL, 1);
+			Serial.println(power.value);
+			Aurora::DataDSP powerpeak = inv1.readDSP(DSP_POWER_PEAK_TODAY_ALL, 1);
+			Serial.println(powerpeak.value);
+			Aurora::DataDSP freq = inv1.readDSP(DSP_FREQUENCY_ALL, 1);
+			Serial.println(freq.value);
+			Aurora::DataDSP freqA = inv1.readDSP(DSP_FREQUENCY_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(freqA.value);
+			Aurora::DataDSP freqB = inv1.readDSP(DSP_FREQUENCY_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(freqB.value);
+			Aurora::DataDSP freqC = inv1.readDSP(DSP_FREQUENCY_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(freqC.value);
+			Aurora::DataDSP temp = inv1.readDSP(DSP_INVERTER_TEMPERATURE_GT, 1);
+			Serial.println(temp.value);
+
+			volt = inv2.readDSP(DSP_VOLTAGE_ALL, 1);
+			Serial.println(volt.value);
+			gridvolt = inv2.readDSP(DSP_AVERAGE_GRID_VOLTAGE_VGRIDAVG_GT, 1);
+			Serial.println(gridvolt.value);
+			voltA = inv2.readDSP(DSP_GRID_VOLTAGE_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(voltA.value);
+			voltB = inv2.readDSP(DSP_GRID_VOLTAGE_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(voltB.value);
+			voltC = inv2.readDSP(DSP_GRID_VOLTAGE_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(voltC.value);
+			voltN = inv2.readDSP(DSP_GRID_VOLTAGE_NEUTRAL_PHASE_CENTRAL, 1);
+			Serial.println(voltN.value);
+			current = inv2.readDSP(DSP_CURRENT_ALL, 1);
+			Serial.println(current.value);
+			currentA = inv2.readDSP(DSP_GRID_CURRENT_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(currentA.value);
+			currentB = inv2.readDSP(DSP_GRID_CURRENT_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(currentB.value);
+			currentC = inv2.readDSP(DSP_GRID_CURRENT_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(currentC.value);
+			power = inv2.readDSP(DSP_GRID_POWER_ALL, 1);
+			Serial.println(power.value);
+			powerpeak = inv2.readDSP(DSP_POWER_PEAK_TODAY_ALL, 1);
+			Serial.println(powerpeak.value);
+			freq = inv2.readDSP(DSP_FREQUENCY_ALL, 1);
+			Serial.println(freq.value);
+			freqA = inv2.readDSP(DSP_FREQUENCY_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(freqA.value);
+			freqB = inv2.readDSP(DSP_FREQUENCY_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(freqB.value);
+			freqC = inv2.readDSP(DSP_FREQUENCY_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(freqC.value);
+			temp = inv2.readDSP(DSP_INVERTER_TEMPERATURE_GT, 1);
+			Serial.println(temp.value);
+
+			volt = inv3.readDSP(DSP_VOLTAGE_ALL, 1);
+			Serial.println(volt.value);
+			gridvolt = inv3.readDSP(DSP_AVERAGE_GRID_VOLTAGE_VGRIDAVG_GT, 1);
+			Serial.println(gridvolt.value);
+			voltA = inv3.readDSP(DSP_GRID_VOLTAGE_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(voltA.value);
+			voltB = inv3.readDSP(DSP_GRID_VOLTAGE_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(voltB.value);
+			voltC = inv3.readDSP(DSP_GRID_VOLTAGE_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(voltC.value);
+			voltN = inv3.readDSP(DSP_GRID_VOLTAGE_NEUTRAL_PHASE_CENTRAL, 1);
+			Serial.println(voltN.value);
+			current = inv3.readDSP(DSP_CURRENT_ALL, 1);
+			Serial.println(current.value);
+			currentA = inv3.readDSP(DSP_GRID_CURRENT_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(currentA.value);
+			currentB = inv3.readDSP(DSP_GRID_CURRENT_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(currentB.value);
+			currentC = inv3.readDSP(DSP_GRID_CURRENT_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(currentC.value);
+			power = inv3.readDSP(DSP_GRID_POWER_ALL, 1);
+			Serial.println(power.value);
+			powerpeak = inv3.readDSP(DSP_POWER_PEAK_TODAY_ALL, 1);
+			Serial.println(powerpeak.value);
+			freq = inv3.readDSP(DSP_FREQUENCY_ALL, 1);
+			Serial.println(freq.value);
+			freqA = inv3.readDSP(DSP_FREQUENCY_PHASE_R_CENTRAL_3P, 1);
+			Serial.println(freqA.value);
+			freqB = inv3.readDSP(DSP_FREQUENCY_PHASE_S_CENTRAL_3P, 1);
+			Serial.println(freqB.value);
+			freqC = inv3.readDSP(DSP_FREQUENCY_PHASE_T_CENTRAL_3P, 1);
+			Serial.println(freqC.value);
+			temp = inv3.readDSP(DSP_INVERTER_TEMPERATURE_GT, 1);
+			Serial.println(temp.value);
+			freeMemory();
+
+			digitalWrite(LED_BUILTIN, LOW);
+
+			delay(20); //for debouncing
+		}
+	}
+}
+
