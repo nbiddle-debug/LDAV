@@ -1,0 +1,47 @@
+function vref = mppt(v, i)
+
+	vrefmax = 340.2; % same as Voc of PV array
+	vrefmin = 0;
+	vrefinit = 240;
+	delta = 0.02;
+	persistent vold pold vrefold
+
+	dataType = 'double';
+
+	if isempty(vold)
+		vold = 0;
+		pold = 0;
+		vrefold = vrefinit;
+	end
+
+	p = v*i;
+	dv = v - vold;
+	dp = p - pold;
+
+	if dp ~= 0
+		if dp < 0
+			if dv < 0
+				vref = vrefold + delta;
+			else
+				vref = vrefold - delta;
+			end
+		else
+			if dv < 0
+				vref = vrefold - delta;
+			else
+				vref = vrefold + delta;
+			end
+		end
+	else 
+		vref = vrefold;
+	end
+
+	if vref >= vrefmax || vref <= vrefmin
+		vref = vrefold;
+	end
+
+	vrefold = vref;
+	vold = v;
+	pold = p;
+end
+
