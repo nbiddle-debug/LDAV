@@ -1,0 +1,182 @@
+#include <SoftwareSerial.h>
+
+SoftwareSerial rs232(2, 3);  // RX, TX
+
+void setup() {
+	Serial.begin(19200);
+	rs232.begin(57600);
+	pinMode(LED_BUILTIN, OUTPUT);
+}
+
+void loop() {
+	uint16_t status;
+	float voltScaleDC, voltScaleAC, currentScaleDC, currentScaleAC, voltDC, voltAC, P, Q, soc, freq;
+
+	while (send_bytes(0x510000A00000) != 0xFFFF) {
+
+    	if (Serial.available() > 0) {  // checks if serial is available to pi
+      		if (Serial.read() == 'R') {  // only commences when pi sends 'R' character via serial
+      			voltScaleDC = send_bytes(0x51002AA00000);
+      			voltScaleAC = send_bytes(0x510028A00000);
+      			currentScaleDC = send_bytes(0x51002BA00000);
+      			currentScaleAC = send_bytes(0x510029A00000);
+      			voltDC = (send_bytes(0x51002EA00000) * voltScaleDC) / 327680;
+      			Serial.println(voltDC);
+
+      			voltAC = (send_bytes(0x510012A10000) * voltScaleAC) / 327680;
+      			Serial.println(voltAC);
+
+      			P = (send_bytes(0x510039A00000) * voltScaleAC * currentScaleAC) / 3276800;
+      			Serial.println(P);
+
+      			Q = (send_bytes(0x51005AA00000) * voltScaleAC * currentScaleAC) / 3276800;
+      			Serial.println(Q);
+
+      			status = send_bytes(0x510045A00000);
+      			switch (status) {
+      			case 0:
+      				Serial.println("Initial");
+      				break;
+      			case 1:
+      				Serial.println("Bulk");
+      				break;
+      			case 2:
+      				Serial.println("Absorb");
+      				break;
+      			case 3:
+      				Serial.println("Short Term Float");
+      				break;
+      			case 4:
+      				Serial.println("Initilise Float");
+      				break;
+      			case 5:
+      				Serial.println("Equalise");
+      				break;
+      			case 6:
+      				Serial.println("Longterm Float");
+      				break;
+      			}
+
+      			soc = send_bytes(0x510081A00000) / 256;
+      			Serial.println(soc);
+
+      			freq = send_bytes(0x510092A00000) / 100;
+      			Serial.print(freq);
+      		}
+      	}
+      }
+}
+
+
+uint64_t add_crc(uint64_t msg, uint16_t len) {
+	uint16_t crc = crc_gen(msg, len);
+
+	msg = (msg << 16);
+	msg = msg | crc;
+
+	return msg;
+}
+
+uint16_t crc_gen(uint64_t msg, uint16_t len) {
+	uint16_t crc = 0x0000, poly = 0x1021;
+	uint64_t invmsg = flip_msg(msg, len);
+
+	for (int i = len - 1; i >= 0; i--) {
+		if (i > 1) {
+			crc = ((invmsg >> (i - 1) * 8) & 0xFF00) ^ crc;
+		} else if (i == 1) {
+			crc = (invmsg & 0xFF00) ^ crc;
+		} else {
+			crc = (invmsg << 8) ^ crc;
+		}
+
+		for (int j = 15; j > 7; j--) {
+			if (bitRead(crc, 15) == 1) {
+				crc = crc << 1;
+				crc = poly ^ crc;
+			} else {
+				crc = crc << 1;
+			}
+		}
+	}
+	uint16_t fcrc = flip_crc(crc);
+
+	return fcrc;
+}
+
+uint64_t flip_msg(uint64_t msg, uint16_t len) {
+	uint64_t buff = 0;
+	uint64_t invmsg = 0;
+
+	for (int i = 0; i < len; i++) {
+		for (int j = 0; j < 8; j++) {
+			buff = buff << 1;
+			if (msg & 1) {
+				buff = buff | 1;
+			}
+			msg = msg >> 1;
+		}
+	}
+
+	for (int i = 0; i < len - 1; i++) {
+		invmsg = invmsg | (buff & 0xFF);
+		invmsg = invmsg << 8;
+		buff = buff >> 8;
+	}
+	invmsg = invmsg | (buff & 0xFF);
+
+	return invmsg;
+}
+
+uint16_t flip_crc(uint16_t crc) {
+	uint16_t fcrc = 0;
+
+	for (int i = 0; i < 16; i++) {
+		fcrc = fcrc << 1;
+		if (crc & 1) {
+			fcrc = fcrc | 1;
+		}
+		crc = crc >> 1;
+	}
+	crc = (fcrc & 0xFF) << 8;
+	crc = crc | (fcrc >> 8);
+
+	return crc;
+}
+
+uint16_t send_bytes(uint64_t msg) { 
+	msg = add_crc(msg, 6);
+
+	byte sendData[8];
+	byte readData[12];
+
+	for (int i = 7; i >= 0; i--) {
+		sendData[abs(i - 7)] = msg >> 8 * i;
+	}
+	for (int i = 0; i < sizeof(sendData); i++) {
+		rs232.write(sendData[i]);
+		delay(10);
+	}
+	delay(20);
+	if (rs232.available()) {
+		while (rs232.available()) {
+			for (int i = 0; i < sizeof(readData); i++) {
+				readData[i] = rs232.read();
+				delay(10);
+			}
+		}
+	}
+
+	if (readData[2] == sendData[2] && readData[3] == sendData[3]) {
+		digitalWrite(LED_BUILTIN, HIGH);
+
+		uint16_t val;
+		val = readData[9];
+		val = val << 8;
+		val = val | readData[8];
+
+		delay(50);
+		digitalWrite(LED_BUILTIN, LOW);
+		return val;
+	}
+}
