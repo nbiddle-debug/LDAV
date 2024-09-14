@@ -1,0 +1,558 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <iostream>
+#include <ctype.h>
+#include <cmath>
+
+float prev_soc = 0;
+
+using namespace std;
+
+void mqtt(float gen, float load, float pset, float pbal, float energy[], float active[], float consumption[], float avg_volt, float voltage[], float current[], float pf[], float freq[], float imbalance, float swell, float phase_imbalance, float freq_imbalance, float soc, float latency[], float loss) {
+        int size = 64;
+        char message[64] = {0};
+        string name[20] = {"AUR1", "AUR2", "AUR3", "SEL1", "MT01", "MT20", "MT21", "MT22", "MT23", "MT24", "MT25", "MT26", "MT27", "MT28", "MT29", "MT30", "MT31", "MT32", "MT33", "MT34"};
+        string pfname[16] = {"MT01", "MT20", "MT21", "MT22", "MT23", "MT24", "MT25", "MT26", "MT27", "MT28", "MT29", "MT30", "MT31", "MT32", "MT33", "MT34"};
+        string id[20];
+        string energy_name[6] = {"M01NET_E", "M01IMP_E", "M01EXP_E", "M04NET_E", "M04IMP_E", "M04EXP_E"};
+        string consumption_name[7] = {"BMS", "GEN", "COM", "LHT", "RFT", "BLK", "CRN"};
+
+        struct sockaddr_in servaddr;
+        struct sockaddr addr;
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+        if(sockfd == -1) {
+                perror("Failed to create socket");
+                exit(EXIT_FAILURE);
+        }
+
+        servaddr.sin_addr.s_addr = inet_addr("10.9.52.195");
+        servaddr.sin_port = htons(5005);
+        servaddr.sin_family = AF_INET;
+
+        if(connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+                printf("\n Error : Connect Failed \n");
+                exit(0);
+        }
+
+        if(abs(gen) < 50) {
+                strcpy(message, ("GENRPOWR" + to_string(gen)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(load) < 80) {
+                strcpy(message, ("LOADPOWR" + to_string(load)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(pset) < 10) {
+                strcpy(message, ("PSETPOWR" + to_string(pset)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(pbal) < 100) {
+                strcpy(message, ("BALNPOWR" + to_string(pbal)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        for(int i = 0; i < 6; i++){
+                strcpy(message, (energy_name[i] + to_string(energy[i])).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        for(int i = 0; i < 20; i++){
+                if(abs(active[i]) < 100){
+                        id[i] = "POWR" + name[i];
+                        strcpy(message, (id[i] + to_string(active[i])).c_str());
+                        sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                        memset(message, 0, sizeof(message));
+                }
+        }
+        for(int i = 0; i < 7; i++){
+                if(abs(consumption[i]) < 65535){
+                        id[i] = "POWER" + consumption_name[i];
+                        strcpy(message, (id[i] + to_string(consumption[i])).c_str());
+                        sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                        memset(message, 0, sizeof(message));                                
+                }
+        }
+        if(abs(avg_volt) < 65535 && avg_volt > 0) {
+                strcpy(message, ("AVRGVOLT" + to_string(avg_volt)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        for(int i = 0; i < 20; i++){
+                if(abs(voltage[i]) < 65535 && voltage[i] > 0){
+                        id[i] = "VOLT" + name[i];
+                        strcpy(message, (id[i] + to_string(voltage[i])).c_str());
+                        sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                        memset(message, 0, sizeof(message));
+                }
+        }
+        for(int i = 0; i < 20; i++){
+                if(abs(current[i]) < 65535){
+                        id[i] = "CRNT" + name[i];
+                        strcpy(message, (id[i] + to_string(current[i])).c_str());
+                        sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                        memset(message, 0, sizeof(message));
+                }
+        }
+        for(int i = 0; i < 16; i++){
+                if(abs(pf[i]) < 65535){
+                        id[i] = "PWFT" + pfname[i];
+                        strcpy(message, (id[i] + to_string(pf[i])).c_str());
+                        sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                        memset(message, 0, sizeof(message));
+                }
+        }
+        string freqname[4] = {"GRID", "PVIN", "LOAD", "BATT"};
+        for(int i = 0; i < 4; i++){
+                if(abs(freq[i]) < 70 && abs(freq[i]) > 30) {
+                       strcpy(message, ("FREQ" + freqname[i] + to_string(freq[i])).c_str());
+                       sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                       memset(message, 0, sizeof(message));
+                }
+        }
+        if(abs(imbalance) < 65535 && abs(imbalance) < 10) {
+                strcpy(message, ("IMBLANCE" + to_string(abs(imbalance))).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(swell) < 65535 && abs(swell) < 10) {
+                strcpy(message, ("VLTSWELL" + to_string(abs(swell))).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(phase_imbalance) < 65535 && abs(phase_imbalance) < 10) {
+                strcpy(message, ("PHSIMBLN" + to_string(abs(phase_imbalance))).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(freq_imbalance) < 65535 && abs(freq_imbalance) < 10) {
+                strcpy(message, ("FRQIMBLN" + to_string(abs(freq_imbalance))).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        if(abs(soc) < 100 && soc > 0){
+                strcpy(message, ("STATCHRG" + to_string(soc)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        for(int i = 0; i < 5; i++){
+                if(latency[i] < 30 && latency[i] > 0){
+                        if(i < 4){
+                                id[i] = "LTCY" + name[i];
+                                strcpy(message, (id[i] + to_string(latency[i])).c_str());
+                                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                                memset(message, 0, sizeof(message));
+                        } else {
+                                id[i] = "LTCYBMS1";
+                                strcpy(message, (id[i] + to_string(latency[i])).c_str());
+                                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                                memset(message, 0, sizeof(message));  
+                        }
+                }
+        }
+        if(abs(loss) < 65535){
+                strcpy(message, ("PACKLOSS" + to_string(loss)).c_str());
+                sendto(sockfd, message, size, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message)); 
+        }
+        
+        close(sockfd);
+}
+
+void powerControl(float pset){        
+        char message[64] = {0};
+
+        struct sockaddr_in servaddr;
+        struct sockaddr addr;
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+        if(sockfd == -1) {
+                perror("Failed to create socket");
+                exit(EXIT_FAILURE);
+        }
+
+        servaddr.sin_addr.s_addr = inet_addr("10.9.52.62");
+        servaddr.sin_port = htons(5005);
+        servaddr.sin_family = AF_INET;
+
+        if(connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+                printf("\n Error : Connect Failed \n");
+                exit(0);
+        }
+
+        if(abs(pset) < 100) {
+                strcpy(message, ("PSETPOWR" + to_string(pset)).c_str());
+                sendto(sockfd, message, 64, 0, (struct sockaddr*)NULL, sizeof(servaddr));
+                memset(message, 0, sizeof(message));
+        }
+        close(sockfd);
+}
+
+int main(){
+        cout << "\033[1;31mmain.cpp" << endl;
+
+        struct sockaddr_in servaddr;
+        struct sockaddr addr;
+
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if(sockfd == -1) {
+                perror("Failed to create socket");
+                exit(EXIT_FAILURE);
+        }
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_port = htons(5005);
+        servaddr.sin_addr.s_addr = INADDR_ANY;
+        //xservaddr.sin_addr.s_addr = inet_addr("10.9.51.214");
+
+        int rc = bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr));
+
+        if(rc == -1) {
+                perror("Failed to bind");
+                close(sockfd);
+                exit(EXIT_FAILURE);
+        }
+
+        uint64_t buffer[64] = {0};
+        int countAur1 = 0;
+        int countAur2 = 0;
+        int countAur3 = 0;
+        int countSel = 0;
+        float auroraData1[18] = {0};
+        float auroraData2[18] = {0};
+        float auroraData3[18] = {0};
+        int32_t selectData[14] = {0};
+
+        char bufferbms[64] = {0};
+        int countBms = 0;
+        char name[16] = {0};
+        char datetime[9] = {0};
+        char buff[45] = {0};
+        float bmsData[239] = {0};
+        string id[239];
+
+        float aur1[18] = {0};
+        float aur2[18] = {0};
+        float aur3[18] = {0};
+        float sel[14] = {0};
+        float bms[239] = {0};
+
+        int cycle = 0;
+
+        float voltage[20] = {0};
+        float voltageA[19] = {0};
+        float voltageB[19] = {0};
+        float voltageC[19] = {0};
+        float current[20] = {0};
+        float active[20] = {0};
+        float pf[16] = {0};
+        float freq[4] = {0};
+        float gen = 0; 
+        float load = 0;
+        float pset = 0;
+        float pbal = 0;
+        float energy[6] = {0};
+        float consumption[7] = {0};
+        float imbalance = 0;
+        float swell = 0;
+        float phase_imbalance = 0;
+        float freq_imbalance = 0;
+        float soc = 0;
+        float latency[5] = {0};
+        float avglatency = 0;
+        float loss = 0;
+        float max = 0;
+        float min = 400;
+        float avg_volt = 0;
+        float dev = 0;        
+
+        while(1){
+                socklen_t len;
+                int n = recvfrom(sockfd, buffer, 64, MSG_WAITALL, &addr, &len);
+                for(int i = 0; i < 4; i++){
+                        for(int j = 0; j < 8; j++){
+                                bufferbms[j + 8*i] = ((buffer[i] >> 8*j) & 0xFF);
+                        }
+                }
+                if(buffer[0] >>  56 == 0x10){
+                        auroraData1[countAur1] = ((buffer[0] & 0xFFFFFFFF0000) >> 16);
+                        countAur1++;}
+                if(buffer[0] >>  56 == 0x20){
+                        auroraData2[countAur2] = ((buffer[0] & 0xFFFFFFFF0000) >> 16);
+                        countAur2 ++; }
+                if(buffer[0] >>  56 == 0x30){
+                        auroraData3[countAur3] = ((buffer[0] & 0xFFFFFFFF0000) >> 16);
+                        countAur3++; }
+                if(buffer[0] >>  56 == 0x40){ 
+                        selectData[countSel] = ((buffer[0] & 0xFFFFFFFF0000) >> 16);
+                        countSel++; }
+                if(buffer[0] >>  48 == 0x1FFF){
+                        countAur1 = 0;
+                        copy(begin(auroraData1), end(auroraData1), begin(aur1));}
+                if(buffer[0] >>  48 == 0x2FFF){
+                        countAur2 = 0;
+                        copy(begin(auroraData2), end(auroraData2), begin(aur2));}
+                if(buffer[0] >>  48 == 0x3FFF){
+                        countAur3 = 0;
+                        copy(begin(auroraData3), end(auroraData3), begin(aur3));}
+                if(buffer[0] >> 48 == 0x4FFF){
+                        countSel = 0;
+                        copy(begin(selectData), end(selectData), begin(sel));}
+
+                if(bufferbms[0] == 'M' && isdigit(bufferbms[1]) > 0){
+
+                        for(int i = 0; i < 12; i++){
+                                name[i] = bufferbms[i];}
+                        for(int j = 12; j < 20; j++){
+                                datetime[j - 12] = bufferbms[j];}
+                        for(int k = 20; k < 64; k++){
+                                buff[k - 20] = bufferbms[k];}
+
+                        bmsData[countBms] = atof(buff);
+                        string s = name;
+                        countBms = countBms + 1;
+
+                        if(s == "M99LATENCY11"){
+                                countBms = 0;
+                                copy(begin(bmsData), end(bmsData), begin(bms));
+                        }
+                }
+        
+
+
+                cycle = cycle + 1;
+
+                if(cycle == 128){
+                        cycle = 0; 
+//data into arrays -----------------------------------------------------------------------   
+                        freq[2] = 50;                     
+                        for(int i = 0; i < 16; i++){
+                                voltageA[i + 3] = bms[14*i];
+                                voltageB[i + 3] = bms[1 + 14*i];
+                                voltageC[i + 3] = bms[2 + 14*i];
+                                voltage[i + 4] = (voltageA[i + 3] + voltageB[i + 3] + voltageC[i + 3])/3;
+                                current[i + 4] = (bms[3 + 14*i] + bms[4 + 14*i] + bms[5 + 14*i])/3;
+                                active[i + 4] = bms[6 + 14*i];
+                                pf[i] = bms[9 + 14*i];
+                                if(i == 0){
+                                        freq[0] = bms[10];
+                                } else {
+                                        if(bms[10 + 14*i] > 49 && bms[10 + 14*i] < 51){
+                                                freq[2] = (freq[2] + bms[10 + 14*i])/2;
+                                        } else {
+                                                loss = loss + 1;
+                                        }
+                                        load = load + bms[6 + 14*i];
+                                }
+                        }
+
+                        for(int i = 0; i < 3; i++){
+                                energy[i] = bms[11 + i];
+                                energy[i + 3] = bms[235 + i];
+                        }
+                        energy[1] = -energy[1];
+                        energy[4] = -energy[4];
+
+                        active[0] = aur1[10]/100000;
+                        active[1] = aur2[10]/100000;
+                        active[2] = aur3[10]/100000;
+                        active[3] = sel[5]/100;
+                        gen = (active[0] + active[1] + active[2]);
+                        load = load*1.75;
+                        pset = load - gen;
+                        pbal = load - gen - active[3];
+
+                        consumption[0] = active[5] + active[9] + active[13];
+                        consumption[1] = active[6] + active[10] + active[14];
+                        consumption[2] = active[7] + active[11] + active[16];
+                        consumption[3] = active[8] + active[12] + active[15];
+                        consumption[4] = active[17];
+                        consumption[4] = active[18];
+                        consumption[4] = active[19];
+                        
+                        voltageA[0] = aur1[2]/100;
+                        voltageB[0] = aur1[3]/100;
+                        voltageC[0] = aur1[4]/100;
+                        voltage[0] = (voltageA[0] + voltageB[0] + voltageC[0])/3;
+
+                        voltageA[1] = aur2[2]/100;
+                        voltageB[1] = aur2[3]/100;
+                        voltageC[1] = aur2[4]/100;                                
+                        voltage[1] = (voltageA[1] + voltageB[1] + voltageC[1])/3;
+ 
+                        voltageA[2] = aur3[2]/100;
+                        voltageB[2] = aur3[3]/100;
+                        voltageC[2] = aur3[4]/100;            
+                        voltage[2] = (voltageA[2] + voltageB[2] + voltageC[2])/3;
+                        
+                        voltage[3] = sel[12]/100;
+
+                        current[0] = aur1[6]/100;
+                        current[1] = aur2[6]/100;
+                        current[2] = aur3[6]/100;
+                        current[3] = (sel[9]/100);
+
+                        freq[1] = (aur1[12]/100 + aur2[12]/100 + aur3[12]/100)/3;
+                        freq[3] = sel[10]/100;
+
+// filtering of data and packet loss accumulation -----------------------------------------------------------------------
+
+                        for(int i = 0; i < 20; i++){
+                                if(voltage[i] < 207 || voltage[i] > 253){
+                                        loss = loss + 1;
+                                        voltage[i] = 0;
+                                }
+                                if(i >= 1){
+                                        if(voltageA[i - 1] < 207 && voltageA[i - 1] > 253){
+                                                loss = loss + 1;
+                                                voltageA[i - 1] = 0;
+                                        }
+                                        if(voltageB[i - 1] < 207 && voltageB[i - 1] > 253){
+                                                loss = loss + 1;
+                                                voltageB[i - 1] = 0;
+                                        }
+                                        if(voltageC[i - 1] < 207 && voltageC[i - 1] > 253){
+                                                loss = loss + 1;
+                                                voltageC[i - 1] = 0;
+                                        }
+
+                                }
+                                if(current[i] > 30){
+                                        loss = loss + 1;
+                                        current[i] = 0;
+                                }
+                                if(i >= 4){
+                                        if(pf[i - 4] > 1 || pf[i - 4] < 0.2){
+                                                loss = loss + 1;
+                                                pf[i - 4] = 0;
+                                        }
+                                }
+                                if(i >= 17){
+                                        if(freq[i - 17] < 49 || freq[i - 17] > 51){
+                                                loss = loss + 1;
+                                                freq[i - 17] = 0;
+                                        } else {
+                                                freq_imbalance = ((freq[1] + freq[2])/2)/freq[0];
+                                        }
+                                }
+                        }
+                        if(gen > 180){
+                                loss = loss + 1;
+                                gen = 0;
+                        }
+                        if(load > 180){
+                                loss = loss + 1;
+                                load = 0;
+                        }
+
+//computation of values -----------------------------------------------------------------------
+                        max = 0;
+                        min = 400;
+                        avg_volt = 0;
+                        dev = 0; 
+                        for(int i = 0; i < 20; i++){
+                                if(voltage[i] != 0 && i != 4){
+                                        if(voltage[i] > max){
+                                            max = voltage[i];}
+                                        if(voltage[i] < min){
+                                                min = voltage[i];}
+                                        avg_volt = (avg_volt + voltage[i])/2;
+                                }     
+                        }
+
+                        if(max - avg_volt > avg_volt - min){
+                                dev = max - avg_volt;
+                        } else {
+                                dev = avg_volt - min;}
+                        imbalance = (dev/avg_volt)*100;
+
+                        for(int i = 0; i < 19; i++){
+                                max = 207;
+                                min = 253;
+                                dev = 0;
+                                if(voltageA[i] > max && voltageA[i] < 253){
+                                        max = voltageA[i];}
+                                if(voltageA[i] < min && voltageA[i] > 207){
+                                        min = voltageA[i];}
+                                if(voltageB[i] > max && voltageB[i] < 253){
+                                        max = voltageB[i];}
+                                if(voltageB[i] < min && voltageB[i] > 207){
+                                        min = voltageB[i];}
+                                if(voltageC[i] > max && voltageC[i] < 253){
+                                        max = voltageC[i];}
+                                if(voltageC[i] < min && voltageC[i] > 207){
+                                        min = voltageC[i];}
+
+                                if(max - avg_volt > avg_volt - min){
+                                        dev = max - avg_volt;
+                                }
+                                else {
+                                        dev = avg_volt - min;
+                                }
+                                phase_imbalance = (phase_imbalance + (dev/avg_volt)*100)/2;
+                        }
+
+                        swell = ((avg_volt/240) - 1)*100; 
+
+                        soc = sel[8]/100;
+                        if(soc > 100 || soc < 0){
+                                loss = loss + 1;
+                                soc = 0;
+                        }
+                        if(prev_soc == 0){
+                                prev_soc = soc;
+                        }
+                        if(abs(soc - prev_soc) > 2){
+                                loss = loss + 1;
+                                soc = 0;
+                        }
+
+                        prev_soc = soc;
+                        
+
+
+                        latency[0] = aur1[17]/100;
+                        latency[1] = aur2[17]/100;
+                        latency[2] = aur3[17]/100;
+                        latency[3] = sel[14]/10000; 
+                        latency[4] = bms[238];
+                        avglatency = (latency[0] + latency[1] + latency[2] + latency[3] + latency[4])/5;
+
+                        loss = loss*4 - 76;
+
+                        cout << "\033[1;32mVOLTAGE = " << "\033[1;37m" << avg_volt << " V | " << "\033[1;32mFREQUENCY = " << "\033[1;37m" << freq[1] << " Hz" << endl;
+                        cout << "\033[1;32mSOC = " << "\033[1;37m" << soc << "%" << endl;
+                        cout << "\033[1;32mLATENCY = " << "\033[1;37m" << avglatency << " secs | " << "\033[1;32mPACKET LOSS = " << "\033[1;37m" << loss << " bytes" << endl;
+                        cout << "\033[1;32mPV 1: " << "\033[1;37m" << active[0] << " kW" << "\033[1;32m PV 2: " << "\033[1;37m" << active[1] << " kW" << "\033[1;32m | PV 3: " << "\033[1;37m" << active[2] << " kW" << "\033[1;32m | ESS: " << "\033[1;37m" << active[3] << " kW" << "\033[1;32m | LOAD: " << "\033[1;37m" << load << " kW" << endl;
+                        cout << "\033[1;32mPOWER BALANCE SETPOINT = " << "\033[1;31m" << pset << " kW" << "\033[1;32m | POWER FLOW  = " << "\033[1;37m" << pbal << " kW" << endl;
+                        cout << "\033[1;37m------------------------------------------------------------------------------------" << endl;
+
+                        powerControl(pset);
+                        mqtt(gen, load, pset, pbal, energy, active, consumption, avg_volt, voltage, current, pf, freq, imbalance, swell, phase_imbalance, freq_imbalance, soc, latency, loss);
+
+                        gen = 0;
+                        load = 0;
+                        loss = 0;
+                        phase_imbalance = 0;
+                }
+                
+                memset(buffer, 0, sizeof(buffer));
+                memset(bufferbms, 0, sizeof(bufferbms));
+
+
+        }
+
+        
+        close(sockfd);
+        return 0;
+}
+
+
